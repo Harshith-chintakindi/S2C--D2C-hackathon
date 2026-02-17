@@ -1,0 +1,33 @@
+ENCRYPTION MODULE
+
+`timescale 1ns / 1ps
+
+module encrypt(
+    input  [7:0] data_in,
+    output [7:0] data_out
+);
+
+parameter KEY = 8'hA5;
+
+wire [7:0] sub_stage;
+wire [7:0] perm_stage;
+
+// Substitution (NOT)
+assign sub_stage = ~data_in;
+
+// Permutation
+assign perm_stage = {
+    sub_stage[2],
+    sub_stage[5],
+    sub_stage[7],
+    sub_stage[1],
+    sub_stage[3],
+    sub_stage[0],
+    sub_stage[6],
+    sub_stage[4]
+};
+
+// XOR with KEY
+assign data_out = perm_stage ^ KEY;
+
+endmodule

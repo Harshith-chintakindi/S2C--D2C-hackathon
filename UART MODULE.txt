@@ -1,0 +1,65 @@
+UART MODULE
+
+`timescale 1ns / 1ps
+
+module uart_tx(
+    input clk,
+    input rst,
+    input [7:0] data,
+    input start,
+    output reg tx = 1,
+    output reg busy = 0
+);
+
+parameter BAUD_DIV = 10416; // 100MHz / 9600
+
+reg [13:0] baud_cnt = 0;
+reg baud_tick = 0;
+
+reg [3:0] bit_index = 0;
+reg [10:0] shift_reg;
+
+wire parity;
+assign parity = ^data;  // even parity
+
+// ================= Baud Generator =================
+always @(posedge clk) begin
+    if (baud_cnt == BAUD_DIV-1) begin
+        baud_cnt <= 0;
+        baud_tick <= 1;
+    end else begin
+        baud_cnt <= baud_cnt + 1;
+        baud_tick <= 0;
+    end
+end
+
+// ================= UART FSM =================
+always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        tx <= 1;
+        busy <= 0;
+        bit_index <= 0;
+    end
+    else begin
+
+        if (start && !busy) begin
+            busy <= 1;
+            shift_reg <= {1'b1, parity, data, 1'b0}; 
+            bit_index <= 0;
+        end
+
+        else if (busy && baud_tick) begin
+            tx <= shift_reg[0];
+            shift_reg <= shift_reg >> 1;
+            bit_index <= bit_index + 1;
+
+            if (bit_index == 10) begin
+                busy <= 0;
+                tx <= 1;
+            end
+        end
+
+    end
+end
+
+endmodule

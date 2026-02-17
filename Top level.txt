@@ -1,0 +1,83 @@
+Top level
+
+
+`timescale 1ns / 1ps
+
+module top(
+    input clk,          // 100 MHz clock
+    input ir_in,        // Sensor input
+    output tx,          // UART TX
+    output debug_led
+);
+
+wire [7:0] sensor_data;
+wire [7:0] encrypted_data;
+
+reg start_tx = 0;
+wire busy;
+
+reg [31:0] counter = 0;
+
+reg [1:0] tx_state = 0;
+reg [7:0] tx_data;
+
+assign sensor_data = {7'b0000000, ir_in};
+assign debug_led = ir_in;
+
+// ================= Encryption =================
+encrypt enc (
+    .data_in(sensor_data),
+    .data_out(encrypted_data)
+);
+
+// ================= UART =================
+uart_tx uart (
+    .clk(clk),
+    .rst(1'b0),
+    .data(tx_data),
+    .start(start_tx),
+    .tx(tx),
+    .busy(busy)
+);
+
+// ================= 1 Second Timer + FSM =================
+always @(posedge clk) begin
+    counter <= counter + 1;
+
+    if(counter == 100_000_000) begin
+        counter <= 0;
+        tx_state <= 1;
+    end
+
+    case(tx_state)
+
+        // Send encrypted byte
+        1: begin
+            if(!busy) begin
+                tx_data <= encrypted_data;
+                start_tx <= 1;
+                tx_state <= 2;
+            end
+        end
+
+        // Send checksum byte
+        2: begin
+            start_tx <= 0;
+            if(!busy) begin
+                tx_data <= encrypted_data ^ 8'hFF;
+                start_tx <= 1;
+                tx_state <= 3;
+            end
+        end
+
+        // Wait finish
+        3: begin
+            start_tx <= 0;
+            if(!busy)
+                tx_state <= 0;
+        end
+
+    endcase
+end
+
+endmodule
